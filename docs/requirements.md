@@ -12,9 +12,12 @@ Keep a list of things you bought, each with the date it was bought, so you can s
 - **Edit or delete** an item (delete asks first).
 - Works offline and installs on a phone (PWA).
 
-## Planned
+- **Sign in with Google**; the list is kept in the cloud and follows the user to any device. It still opens and saves offline, and syncs when back online.
 
-- **Sign-in and cloud storage**, so the list follows the user to any device. It must fit a static site on GitHub Pages and stay on a free tier. Options compared on 2026-10-23: Firebase (recommended), Supabase, Cloudflare Workers + D1, PocketBase. Waiting on the developer's choice.
+## Decisions
+
+- **Cloud: Firebase** (Auth + Firestore, free tier), chosen 2026-10-23 over Supabase (free projects pause after a week unused), Cloudflare Workers + D1 (no built-in sign-in) and PocketBase (needs a server). It fits a static site on GitHub Pages.
+- **No passkeys for now.** Firebase has no built-in passkey sign-in; adding one needs a server function and the pay-as-you-go plan. Google sign-in, which stays signed in per device, is enough.
 
 ## Open questions
 

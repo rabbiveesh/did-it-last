@@ -33,13 +33,13 @@ const problem = computed(() => itemProblem(item.value))
 
 async function save() {
   if (problem.value) return
-  await items.save(item.value)
+  items.save(item.value)
   await router.push('/')
 }
 
 async function remove() {
   if (!saved) return
-  await items.remove(saved.id)
+  items.remove(saved.id)
   await router.push('/')
 }
 </script>

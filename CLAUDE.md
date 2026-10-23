@@ -25,8 +25,8 @@ The short way leads to more dead kittens. Prefer the properly typed, tested, mai
   - Component framework: **Vuetify** (mobile-first, large touch targets).
   - State: **Pinia**. Routing: **vue-router** (hash history, for GitHub Pages).
   - **vite-plugin-wasm** loads the Rust core. **vite-plugin-pwa** makes it installable and offline. Shipping as a PWA is deliberate: it's the simplest way to ship.
-- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Today it uses the localStorage driver.
-- **Sign-in and cloud storage: planned.** The data will live in a hosted free-tier service so it follows the user across devices. Moving to it means swapping the storage driver and adding sign-in, not rewriting callers.
+- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Signed in, it uses a Firestore driver (`web/src/storage/firestore.ts`) that keeps each key as a document under the user's own `users/{uid}`; each item is its own key. Tests use the memory driver.
+- **Sign-in and cloud data: Firebase** (free Spark plan). Google sign-in through Firebase Auth (`web/src/account`), data in Cloud Firestore with its offline cache. Only `web/src/firebase.ts`, `web/src/account` and the storage driver know about Firebase. Access rules are in `firestore.rules`; console setup is in `docs/firebase-setup.md`.
 - **Hosting: GitHub Pages**, deployed by GitHub Actions on every push to `master`.
 - **AI (Claude API): keep it to a minimum**, since every call costs money.
 

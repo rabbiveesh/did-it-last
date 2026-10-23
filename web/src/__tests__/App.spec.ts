@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -9,13 +9,30 @@ import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import unstorageMemory from 'unstorage/drivers/memory'
 
+import type { Account } from '@/account'
 import App from '@/App.vue'
 import { routes } from '@/router'
 import { useDriver } from '@/storage'
 import { localDate } from '@/time'
 
+// Stand-ins for Firebase: a fake account, and memory storage instead of the cloud.
+const auth = vi.hoisted(() => ({ account: null as Account | null, signIn: () => {} }))
+vi.mock('@/firebase', () => ({ isFirebaseConfigured: () => true }))
+vi.mock('@/account', () => ({
+  watchAccount: (onChange: (a: Account | null) => void) => {
+    onChange(auth.account)
+    auth.signIn = () => onChange((auth.account = { uid: 'u1', name: 'Test', email: null }))
+    return () => {}
+  },
+  signInWithGoogle: async () => auth.signIn(),
+  signOutOfAccount: async () => {},
+}))
+vi.mock('@/storage', async (original) => {
+  const storage = await original<typeof import('@/storage')>()
+  return { ...storage, useAccountStorage: () => {} }
+})
+
 async function openApp(path = '/') {
-  useDriver(unstorageMemory())
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push(path)
   mount(App, {
@@ -27,6 +44,20 @@ async function openApp(path = '/') {
 }
 
 describe('the app', () => {
+  beforeEach(() => {
+    useDriver(unstorageMemory())
+    auth.account = { uid: 'u1', name: 'Test', email: null }
+  })
+
+  it('asks a signed-out user to sign in first, then shows their list', async () => {
+    auth.account = null
+    await openApp()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /sign in with google/i }))
+    await flushPromises()
+    expect(await screen.findByText(/nothing here yet/i)).toBeInTheDocument()
+  })
+
   it('opens on an empty list with one big button to add something', async () => {
     await openApp()
     expect(await screen.findByRole('link', { name: /add something/i })).toBeInTheDocument()

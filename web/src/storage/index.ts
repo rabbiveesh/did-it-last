@@ -1,15 +1,23 @@
-// All persistence goes through this module. Today it is unstorage's localStorage driver;
-// moving to a backend later means passing a different driver to `useDriver`.
+// All persistence goes through this module. Signed in, the data lives in the user's
+// Firestore collection; tests swap in unstorage's memory driver with `useDriver`.
 import { createStorage, type Driver, type Storage } from 'unstorage'
-import localStorageDriver from 'unstorage/drivers/localstorage'
+import memoryDriver from 'unstorage/drivers/memory'
 
-let storage: Storage = createStorage({ driver: localStorageDriver({ base: 'did-it-last' }) })
+import { getFirebase } from '@/firebase'
+import firestoreDriver from './firestore'
+
+let storage: Storage = createStorage({ driver: memoryDriver() })
 
 export function getStorage(): Storage {
   return storage
 }
 
-/** Swap the storage backend, e.g. an HTTP driver for a server, or the memory driver in tests. */
+/** Swap the storage backend, e.g. the memory driver in tests. */
 export function useDriver(driver?: Driver): void {
   storage = createStorage(driver ? { driver } : {})
+}
+
+/** Point storage at one signed-in user's own data in the cloud. */
+export function useAccountStorage(uid: string): void {
+  useDriver(firestoreDriver({ db: getFirebase().db, uid }))
 }
