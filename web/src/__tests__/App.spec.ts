@@ -69,9 +69,9 @@ describe('the app', () => {
     const user = userEvent.setup()
     await user.type(await screen.findByLabelText('What is it?'), 'Kettle')
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/')
+    // The list screen loads lazily, so wait for it rather than for a fixed tick.
     expect(await screen.findByText('Kettle')).toBeInTheDocument()
+    expect(router.currentRoute.value.path).toBe('/')
     expect(screen.getByText(`Bought ${localDate()}`)).toBeInTheDocument()
     expect(screen.getByText('0 days so far')).toBeInTheDocument()
   })
