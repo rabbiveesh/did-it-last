@@ -11,6 +11,8 @@ import unstorageMemory from 'unstorage/drivers/memory'
 
 import type { Account } from '@/account'
 import App from '@/App.vue'
+import { recordItemEdits } from '@/core'
+import { appendChanges } from '@/data/repository'
 import { routes } from '@/router'
 import { useDriver } from '@/storage'
 import { localDate } from '@/time'
@@ -79,5 +81,37 @@ describe('the app', () => {
   it("won't save an item without a name", async () => {
     await openApp('/items/new')
     expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('asks which value to keep when an item was renamed on two devices', async () => {
+    const added = recordItemEdits(
+      [],
+      'k',
+      [
+        { op: 'set', value: { field: 'name', value: 'Kettle' } },
+        { op: 'set', value: { field: 'boughtOn', value: '2026-10-01' } },
+      ],
+      { at: 1, device: 'phone' },
+    )
+    const rename = (name: string, device: string, at: number) =>
+      recordItemEdits(added, 'k', [{ op: 'set', value: { field: 'name', value: name } }], {
+        at,
+        device,
+      })
+    await appendChanges([
+      ...added,
+      ...rename('Red kettle', 'phone', 2),
+      ...rename('Blue kettle', 'laptop', 3),
+    ])
+
+    const router = await openApp()
+    expect(await screen.findByText(/changed on two devices at once/i)).toBeInTheDocument()
+
+    await router.push('/items/k')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Red kettle' }))
+    await flushPromises()
+    expect(screen.queryByText(/which one is right/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('What is it?')).toHaveValue('Red kettle')
   })
 })

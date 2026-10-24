@@ -9,4 +9,4 @@ The app keeps each user's list in Cloud Firestore and signs in with Google throu
 5. **Firestore Database**: create a database in production mode, in a region near the user.
 6. **Firestore Database > Rules**: replace them with [`firestore.rules`](../firestore.rules) and publish. Or, with the Firebase CLI: `npx firebase-tools deploy --only firestore:rules --project <project-id>`.
 
-Data layout: `users/{uid}/entries/{key}`, one document per storage key (`meta`, `items:<id>`), written through `web/src/storage/firestore.ts`.
+Data layout: `users/{uid}/entries/{key}`, one document per storage key, written through `web/src/storage/firestore.ts`. Each key is one change in the log (`changes:<id>`), written once and never updated.

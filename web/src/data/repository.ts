@@ -1,48 +1,36 @@
-// Reads and writes the app's data through the storage module. Each item is its own
-// entry (`items:<id>`), so edits from two devices only clash on the same item, and the
-// schema version lives in `meta`.
-import type { Item } from '@/core'
-import { getStorage } from '@/storage'
+// Reads and appends the change log through the storage module. Each change is its own
+// entry (`changes:<id>`) and is never rewritten, so devices syncing later can't clobber
+// each other: they only add entries.
+import type { ItemChange } from '@/core'
+import { getDeviceStorage, getStorage } from '@/storage'
 import { migrate } from './migrations'
-import { SCHEMA_VERSION, type AppData } from './schema'
+import { SCHEMA_VERSION, type StoredChange } from './schema'
 
-const META = 'meta'
-const ITEMS = 'items'
-const itemKey = (id: string) => `${ITEMS}:${id}`
+const CHANGES = 'changes'
+const DEVICE_ID = 'device-id'
 
-type Meta = { version: number }
-
-export function emptyData(): AppData {
-  return { version: SCHEMA_VERSION, items: [] }
-}
-
-/** Loads saved data, upgrading it to the current schema. A first run starts empty. */
-export async function loadAppData(): Promise<AppData> {
+/** Every change saved so far, in the current format. */
+export async function loadChanges(): Promise<ItemChange[]> {
   const storage = getStorage()
-  const meta = await storage.getItem<Meta>(META)
-  if (meta == null) {
-    await storage.setItem(META, { version: SCHEMA_VERSION })
-    return emptyData()
-  }
-  const keys = await storage.getKeys(ITEMS)
-  const items = (await storage.getItems(keys)).map((entry) => entry.value)
-  const data = migrate({ ...meta, items })
-  if (meta.version !== data.version) await saveAllAppData(data)
-  return data
+  const keys = await storage.getKeys(CHANGES)
+  return (await storage.getItems(keys)).map((entry) => migrate(entry.value))
 }
 
-export async function saveItem(item: Item): Promise<void> {
-  await getStorage().setItem(itemKey(item.id), JSON.parse(JSON.stringify(item)))
+export async function appendChanges(changes: ItemChange[]): Promise<void> {
+  await getStorage().setItems(
+    changes.map((change) => ({
+      key: `${CHANGES}:${change.id}`,
+      value: JSON.parse(JSON.stringify({ v: SCHEMA_VERSION, change } satisfies StoredChange)),
+    })),
+  )
 }
 
-export async function removeItem(id: string): Promise<void> {
-  await getStorage().removeItem(itemKey(id))
-}
-
-/** Rewrites everything, e.g. after a schema upgrade. */
-async function saveAllAppData(data: AppData): Promise<void> {
-  const storage = getStorage()
-  await storage.clear(ITEMS)
-  await Promise.all(data.items.map(saveItem))
-  await storage.setItem(META, { version: data.version })
+/** This browser's own id, which marks the changes made here. Made on first use. */
+export async function deviceId(): Promise<string> {
+  const storage = getDeviceStorage()
+  const saved = await storage.getItem<string>(DEVICE_ID)
+  if (saved) return saved
+  const id = crypto.randomUUID()
+  await storage.setItem(DEVICE_ID, id)
+  return id
 }

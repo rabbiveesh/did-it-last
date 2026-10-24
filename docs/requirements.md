@@ -17,6 +17,7 @@ Keep a list of things you bought, each with the date it was bought, so you can s
 ## Decisions
 
 - **Cloud: Firebase** (Auth + Firestore, free tier), chosen 2026-10-23 over Supabase (free projects pause after a week unused), Cloudflare Workers + D1 (no built-in sign-in) and PocketBase (needs a server). It fits a static site on GitHub Pages.
+- **Edits from several devices merge; real clashes ask the user.** Chosen 2026-10-24. Every edit is kept as an add-only change. Edits to different fields (a rename on one device, marking it done on another) both survive. The same field changed on two devices at once is flagged on the item, showing the newest meanwhile, and the user picks which value is right. Deleting is recorded too, so an item deleted on one device while being changed on another is flagged and the user chooses to keep or delete it.
 - **No passkeys for now.** Firebase has no built-in passkey sign-in; adding one needs a server function and the pay-as-you-go plan. Google sign-in, which stays signed in per device, is enough.
 
 ## Open questions

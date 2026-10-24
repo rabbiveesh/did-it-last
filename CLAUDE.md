@@ -21,11 +21,12 @@ The short way leads to more dead kittens. Prefer the properly typed, tested, mai
 ## Stack
 
 - **Core logic: Rust** (`core/`), compiled to WebAssembly with `wasm-pack`. Pure functions over data: items, lifespans and the order of the list. No I/O, so it can be lifted directly into a future backend.
+- **Data is an immutable append-only log folded by reducers.** Nothing stored is ever rewritten: every edit is a new change record, and current state is a pure fold over the log in the Rust core. `core/src/changes.rs` is the generic substrate (ordering by what each device had seen, tombstones, conflict detection) over any type implementing `Record`; `core/src/item_changes.rs` is items on top of it. A new kind of data is a new `Record` and field list, not new sync code. Same-field edits made concurrently on two devices are conflicts the user settles, never silently dropped.
 - **Frontend: Vue 3 + TypeScript SPA** (`web/`), built with Vite.
   - Component framework: **Vuetify** (mobile-first, large touch targets).
   - State: **Pinia**. Routing: **vue-router** (hash history, for GitHub Pages).
   - **vite-plugin-wasm** loads the Rust core. **vite-plugin-pwa** makes it installable and offline. Shipping as a PWA is deliberate: it's the simplest way to ship.
-- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Signed in, it uses a Firestore driver (`web/src/storage/firestore.ts`) that keeps each key as a document under the user's own `users/{uid}`; each item is its own key. Tests use the memory driver.
+- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Signed in, it uses a Firestore driver (`web/src/storage/firestore.ts`) that keeps each key as a document under the user's own `users/{uid}`; each change is its own key (`changes:<id>`), stored with its format version. This browser's device id stays in localStorage. Tests use the memory driver.
 - **Sign-in and cloud data: Firebase** (free Spark plan). Google sign-in through Firebase Auth (`web/src/account`), data in Cloud Firestore with its offline cache. Only `web/src/firebase.ts`, `web/src/account` and the storage driver know about Firebase. Access rules are in `firestore.rules`; console setup is in `docs/firebase-setup.md`.
 - **Hosting: GitHub Pages**, deployed by GitHub Actions on every push to `master`.
 - **AI (Claude API): keep it to a minimum**, since every call costs money.

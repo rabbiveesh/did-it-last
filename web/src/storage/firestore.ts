@@ -41,6 +41,12 @@ export default defineDriver((opts: FirestoreDriverOptions) => {
     async setItem(key, value) {
       await setDoc(entry(key), { value })
     },
+    // One batch, so the entries written together land together or not at all.
+    async setItems(items) {
+      const batch = writeBatch(opts.db)
+      for (const { key, value } of items) batch.set(entry(key), { value })
+      await batch.commit()
+    },
     async removeItem(key) {
       await deleteDoc(entry(key))
     },

@@ -1,35 +1,50 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import memoryDriver from 'unstorage/drivers/memory'
 
+import { recordItemEdits, type ItemChange } from '@/core'
 import { getStorage, useDriver } from '@/storage'
-import { loadAppData, removeItem, saveItem } from '../repository'
+import { appendChanges, deviceId, loadChanges } from '../repository'
 
-const kettle = { id: 'a', name: 'Kettle', boughtOn: '2026-10-01' }
-const shoes = { id: 'b', name: 'Shoes', boughtOn: '2025-03-01', endedOn: '2026-03-01' }
+const stamp = { at: 1, device: 'phone' }
+const added = (): ItemChange[] =>
+  recordItemEdits(
+    [],
+    'k',
+    [
+      { op: 'set', value: { field: 'name', value: 'Kettle' } },
+      { op: 'set', value: { field: 'boughtOn', value: '2026-10-01' } },
+    ],
+    stamp,
+  )
 
-describe('saving items', () => {
+describe('the change log', () => {
   beforeEach(() => useDriver(memoryDriver()))
 
-  it('starts with an empty list the first time', async () => {
-    expect(await loadAppData()).toEqual({ version: 1, items: [] })
+  it('starts empty the first time', async () => {
+    expect(await loadChanges()).toEqual([])
   })
 
-  it('brings back every saved item', async () => {
-    await loadAppData()
-    await saveItem(kettle)
-    await saveItem(shoes)
-    const { items } = await loadAppData()
-    expect(items).toEqual(expect.arrayContaining([kettle, shoes]))
-    expect(items).toHaveLength(2)
+  it('brings back every saved change', async () => {
+    await appendChanges(added())
+    expect(await loadChanges()).toEqual(expect.arrayContaining(added()))
   })
 
-  it('keeps each item separately, so changing one never rewrites the others', async () => {
-    await loadAppData()
-    await saveItem(kettle)
-    await saveItem(shoes)
-    await saveItem({ ...kettle, endedOn: '2026-10-20' })
-    await removeItem(shoes.id)
-    expect(await getStorage().getKeys('items')).toEqual(['items:a'])
-    expect((await loadAppData()).items).toEqual([{ ...kettle, endedOn: '2026-10-20' }])
+  it('only ever adds entries, one per change', async () => {
+    await appendChanges(added())
+    const later = recordItemEdits(added(), 'k', [{ op: 'deleted', value: true }], {
+      at: 2,
+      device: 'laptop',
+    })
+    await appendChanges(later)
+    expect(await getStorage().getKeys('changes')).toHaveLength(3)
+  })
+
+  it('refuses changes saved by a newer version of the app instead of guessing', async () => {
+    await getStorage().setItem('changes:x', { v: 99, change: {} })
+    await expect(loadChanges()).rejects.toThrow(/newer version/)
+  })
+
+  it('keeps the same device id for this browser', async () => {
+    expect(await deviceId()).toBe(await deviceId())
   })
 })
