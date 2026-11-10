@@ -26,7 +26,16 @@ export function useDriver(driver?: Driver): void {
   storage = createStorage(driver ? { driver } : {})
 }
 
-/** Point storage at one signed-in user's own data in the cloud. */
+/**
+ * Point storage at one signed-in user's own data in the cloud. The data is an append-only
+ * log, so each device fetches an entry once and afterwards only what is new.
+ */
 export function useAccountStorage(uid: string): void {
-  useDriver(firestoreDriver({ firestore: getFirebase().db, collection: `users/${uid}/entries` }))
+  useDriver(
+    firestoreDriver({
+      firestore: getFirebase().db,
+      collection: `users/${uid}/entries`,
+      incremental: true,
+    }),
+  )
 }

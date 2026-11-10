@@ -3,6 +3,7 @@
 import { initializeApp, type FirebaseApp, type FirebaseOptions } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
 import {
+  CACHE_SIZE_UNLIMITED,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -32,8 +33,12 @@ export function getFirebase(): Firebase {
       app,
       auth: getAuth(app),
       // Keep a copy on the device so the list opens and saves offline, and syncs later.
+      // Never evicted: the storage driver reads only what is newer than this copy.
       db: initializeFirestore(app, {
-        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+        }),
       }),
     }
   }

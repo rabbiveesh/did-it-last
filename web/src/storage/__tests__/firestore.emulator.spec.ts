@@ -4,7 +4,17 @@
 // Skipped by a plain `vitest run`, which has no emulator to talk to.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { deleteApp, initializeApp } from 'firebase/app'
-import { connectFirestoreEmulator, getFirestore, terminate } from 'firebase/firestore'
+import {
+  CACHE_SIZE_UNLIMITED,
+  connectFirestoreEmulator,
+  disableNetwork,
+  enableNetwork,
+  getFirestore,
+  initializeFirestore,
+  memoryLocalCache,
+  memoryLruGarbageCollector,
+  terminate,
+} from 'firebase/firestore'
 import { createStorage, type Storage } from 'unstorage'
 
 import firestoreDriver, { escapeKey } from '../firestore'
@@ -25,9 +35,18 @@ describe.runIf(host)('the Firestore storage driver', () => {
     driver = firestoreDriver({ firestore, collection: `tests/run-${Date.now()}-${run}/entries` })
     storage = createStorage({ driver })
   })
+  // A second client that keeps what it has fetched, like the app's persistent cache.
+  const cachingApp = initializeApp({ projectId: 'demo-did-it-last' }, 'emulator-tests-cache')
+  const cachingFirestore = initializeFirestore(cachingApp, {
+    localCache: memoryLocalCache({
+      garbageCollector: memoryLruGarbageCollector({ cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
+    }),
+  })
+  connectFirestoreEmulator(cachingFirestore, hostname!, Number(port))
+
   afterAll(async () => {
-    await terminate(firestore)
-    await deleteApp(app)
+    await Promise.all([terminate(firestore), terminate(cachingFirestore)])
+    await Promise.all([deleteApp(app), deleteApp(cachingApp)])
   })
 
   it('starts empty', async () => {
@@ -131,5 +150,40 @@ describe.runIf(host)('the Firestore storage driver', () => {
 
     await unwatch()
     expect(await storage.getItem('log:2')).toBe(3)
+  })
+
+  it('incrementally, a reopened client starts from its cache and still gets what is new', async () => {
+    const path = driver.options!.collection
+    await storage.setItems([
+      { key: 'log:1', value: 1 },
+      { key: 'log:2', value: 2 },
+    ])
+    const reader = () =>
+      createStorage({
+        driver: firestoreDriver({
+          firestore: cachingFirestore,
+          collection: path,
+          incremental: true,
+        }),
+      })
+
+    const firstOpen = reader()
+    await (
+      await firstOpen.watch(() => {})
+    )()
+
+    // Offline, the next open has everything from the cache alone.
+    await disableNetwork(cachingFirestore)
+    const reopened = reader()
+    const heard: string[] = []
+    const unwatch = await reopened.watch((event, key) => heard.push(`${event} ${key}`))
+    expect((await reopened.getKeys('log')).sort()).toEqual(['log:1', 'log:2'])
+
+    // Back online, entries written meanwhile arrive; older ones are not reported again.
+    await storage.setItem('log:3', 3)
+    await enableNetwork(cachingFirestore)
+    await expect.poll(() => reopened.getItem('log:3')).toBe(3)
+    expect(heard).toEqual(['update log:3'])
+    await unwatch()
   })
 })
