@@ -109,4 +109,27 @@ describe.runIf(host)('the Firestore storage driver', () => {
     await expect.poll(() => events).toEqual(['update fresh', 'remove existing'])
     await unwatch()
   })
+
+  it('answers reads from the live listener while watching, kept current by other clients', async () => {
+    await storage.setItems([
+      { key: 'log:1', value: 1 },
+      { key: 'other', value: 2 },
+    ])
+    const unwatch = await storage.watch(() => {})
+    expect(await storage.getKeys('log')).toEqual(['log:1'])
+    expect(await storage.getItems(['log:1', 'log:2'])).toEqual([
+      { key: 'log:1', value: 1 },
+      { key: 'log:2', value: null },
+    ])
+
+    // Another client writing to the same collection.
+    const otherClient = createStorage({ driver: firestoreDriver(driver.options!) })
+    await otherClient.setItem('log:2', 3)
+    await expect.poll(() => storage.getItem('log:2')).toBe(3)
+    expect(await storage.hasItem('log:2')).toBe(true)
+    expect((await storage.getMeta('log:2')).mtime).toBeInstanceOf(Date)
+
+    await unwatch()
+    expect(await storage.getItem('log:2')).toBe(3)
+  })
 })

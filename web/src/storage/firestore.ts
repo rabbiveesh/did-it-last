@@ -5,6 +5,9 @@
 // are unstorage's serialized strings, as in its mongodb driver. The document id is the key,
 // escaped so that any unstorage key makes a valid id; the key itself is kept in a field so
 // prefix listings are a single range query.
+//
+// While `watch` is on, the driver holds the whole collection from its listener, and reads
+// are answered from that copy: the listener's one read per document is all it costs.
 import { defineDriver } from 'unstorage'
 import {
   collection,
@@ -19,6 +22,7 @@ import {
   where,
   writeBatch,
   type CollectionReference,
+  type DocumentSnapshot,
   type Firestore,
   type Query,
   type Timestamp,
@@ -63,7 +67,9 @@ export default defineDriver((opts: FirestoreDriverOptions) => {
 
   /** Every entry whose key starts with `base`, or all of them. */
   function underBase(base?: string): Query {
-    return base ? query(entries, where('key', '>=', base), where('key', '<', `${base}￿`)) : entries
+    return base
+      ? query(entries, where('key', '>=', base), where('key', '<', `${base}\uffff`))
+      : entries
   }
 
   async function deleteAll(base?: string) {
@@ -76,20 +82,38 @@ export default defineDriver((opts: FirestoreDriverOptions) => {
   }
 
   let unsubscribe: (() => void) | undefined
+  /** The whole collection, kept current by the listener while watching. */
+  let live: Map<string, DocumentSnapshot> | undefined
+
+  function stopWatching() {
+    unsubscribe?.()
+    unsubscribe = undefined
+    live = undefined
+  }
+
+  /** The live copy's entries whose key starts with `base`, or all of them. */
+  const liveUnder = (docs: Map<string, DocumentSnapshot>, base?: string) =>
+    [...docs.keys()].filter((key) => !base || key.startsWith(base))
 
   return {
     name: DRIVER_NAME,
     options: opts,
     getInstance: () => entries,
     async hasItem(key) {
+      if (live) return live.has(key)
       return (await getDoc(entry(key))).exists()
     },
     async getItem(key) {
+      if (live) return (live.get(key)?.get('value') as string | undefined) ?? null
       const snapshot = await getDoc(entry(key))
       return snapshot.exists() ? (snapshot.get('value') as string) : null
     },
     async getItems(items) {
       const keys = items.map((item) => item.key)
+      if (live) {
+        const docs = live
+        return keys.map((key) => ({ key, value: docs.get(key)?.get('value') ?? null }))
+      }
       const values = new Map<string, string>()
       for (const group of chunks(keys, IN_LIMIT)) {
         const found = await getDocs(query(entries, where('key', 'in', group)))
@@ -114,10 +138,11 @@ export default defineDriver((opts: FirestoreDriverOptions) => {
       await deleteDoc(entry(key))
     },
     async getKeys(base) {
+      if (live) return liveUnder(live, base)
       return (await getDocs(underBase(base))).docs.map((d) => d.get('key') as string)
     },
     async getMeta(key) {
-      const snapshot = await getDoc(entry(key))
+      const snapshot = live?.get(key) ?? (await getDoc(entry(key)))
       // A write not yet confirmed by the server has only an estimated time.
       const modified = snapshot.get('modifiedAt', { serverTimestamps: 'estimate' }) as
         Timestamp | undefined
@@ -127,29 +152,44 @@ export default defineDriver((opts: FirestoreDriverOptions) => {
       await deleteAll(base)
     },
     async dispose() {
-      unsubscribe?.()
+      stopWatching()
     },
-    // Reports changes made after watching starts, by this client or any other. A local
-    // write shows up twice (pending, then confirmed with its server time); the value is
-    // the same, so it is reported once.
+    // Reports changes made after watching starts, by this client or any other, and resolves
+    // once the listener has the whole collection. A local write shows up twice (pending, then
+    // confirmed with its server time); the value is the same, so it is reported once.
     async watch(callback) {
-      const seen = new Map<string, string>()
+      stopWatching()
+      const docs = new Map<string, DocumentSnapshot>()
       let first = true
-      unsubscribe = onSnapshot(entries, (snapshot) => {
-        for (const change of snapshot.docChanges()) {
-          const key = change.doc.get('key') as string
-          const value = change.doc.get('value') as string
-          if (change.type === 'removed') {
-            seen.delete(key)
-            if (!first) callback('remove', key)
-          } else if (seen.get(key) !== value) {
-            seen.set(key, value)
-            if (!first) callback('update', key)
-          }
-        }
-        first = false
+      await new Promise<void>((resolve, reject) => {
+        unsubscribe = onSnapshot(
+          entries,
+          (snapshot) => {
+            for (const change of snapshot.docChanges()) {
+              const key = change.doc.get('key') as string
+              const before = docs.get(key)?.get('value')
+              if (change.type === 'removed') {
+                docs.delete(key)
+                if (!first) callback('remove', key)
+              } else {
+                docs.set(key, change.doc)
+                if (!first && before !== change.doc.get('value')) callback('update', key)
+              }
+            }
+            if (first) {
+              first = false
+              live = docs
+              resolve()
+            }
+          },
+          (error) => {
+            // Reads go back to asking Firestore directly.
+            stopWatching()
+            reject(error)
+          },
+        )
       })
-      return () => unsubscribe?.()
+      return stopWatching
     },
   }
 })
