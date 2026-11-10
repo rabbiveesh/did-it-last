@@ -1,0 +1,4 @@
+# Rust
+core/target/
+# wasm-pack output; built from core/ before the web app
+core/pkg/

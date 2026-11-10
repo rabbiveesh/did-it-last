@@ -1,0 +1,8 @@
+{
+  "//": "Firestore emulator for the storage driver's tests (npm run test:emulator). No rules file, so the emulator lets the tests write anywhere; the app's rules are in ../firestore.rules.",
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}
