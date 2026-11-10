@@ -15,5 +15,6 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 // (the overlay container that dialogs teleport into).
 enableAutoUnmount(afterEach)
 afterEach(() => {
-  document.body.innerHTML = ''
+  // Tests that run in plain Node (the Firestore emulator ones) have no document.
+  if (typeof document !== 'undefined') document.body.innerHTML = ''
 })

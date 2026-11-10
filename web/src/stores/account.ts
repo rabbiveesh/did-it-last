@@ -20,7 +20,7 @@ export const useAccountStore = defineStore('account', () => {
         useAccountStorage(signedIn.uid)
         await items.load()
       } else {
-        items.clear()
+        await items.clear()
       }
     })
   }

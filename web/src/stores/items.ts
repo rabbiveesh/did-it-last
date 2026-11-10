@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { Unwatch } from 'unstorage'
 import { computed, ref } from 'vue'
 
 import {
@@ -10,7 +11,7 @@ import {
   type ItemChange,
   type ItemOp,
 } from '@/core'
-import { appendChanges, deviceId, loadChanges } from '@/data/repository'
+import { appendChanges, deviceId, loadChanges, watchChanges } from '@/data/repository'
 import type { IsoDate } from '@/data/schema'
 import { localDate } from '@/time'
 
@@ -29,20 +30,37 @@ export const useItemsStore = defineStore('items', () => {
   const rows = computed(() => itemRows(current.value.items, today.value))
   const conflicts = computed(() => current.value.conflicts)
 
+  let unwatch: Unwatch | undefined
+
+  /** Adds a change from storage unless it is already in the log. */
+  function receive(change: ItemChange) {
+    if (!changes.value.some((c) => c.id === change.id)) {
+      changes.value = [...changes.value, change]
+    }
+  }
+
   async function load() {
     loaded.value = false
     loadError.value = null
+    await unwatch?.()
+    changes.value = []
     try {
       device.value = await deviceId()
-      changes.value = await loadChanges()
+      // Watch first, so a change saved elsewhere during the load is not missed.
+      unwatch = await watchChanges(receive)
+      const saved = await loadChanges()
+      const ids = new Set(saved.map((c) => c.id))
+      changes.value = [...saved, ...changes.value.filter((c) => !ids.has(c.id))]
       loaded.value = true
     } catch (e) {
       loadError.value = e instanceof Error ? e.message : String(e)
     }
   }
 
-  /** Forgets the list, e.g. after signing out. */
-  function clear() {
+  /** Forgets the list and stops following it, e.g. after signing out. */
+  async function clear() {
+    await unwatch?.()
+    unwatch = undefined
     changes.value = []
     loaded.value = false
   }

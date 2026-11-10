@@ -28,5 +28,5 @@ export function useDriver(driver?: Driver): void {
 
 /** Point storage at one signed-in user's own data in the cloud. */
 export function useAccountStorage(uid: string): void {
-  useDriver(firestoreDriver({ db: getFirebase().db, uid }))
+  useDriver(firestoreDriver({ firestore: getFirebase().db, collection: `users/${uid}/entries` }))
 }

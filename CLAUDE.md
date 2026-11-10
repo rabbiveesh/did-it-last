@@ -26,7 +26,7 @@ The short way leads to more dead kittens. Prefer the properly typed, tested, mai
   - Component framework: **Vuetify** (mobile-first, large touch targets).
   - State: **Pinia**. Routing: **vue-router** (hash history, for GitHub Pages).
   - **vite-plugin-wasm** loads the Rust core. **vite-plugin-pwa** makes it installable and offline. Shipping as a PWA is deliberate: it's the simplest way to ship.
-- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Signed in, it uses a Firestore driver (`web/src/storage/firestore.ts`) that keeps each key as a document under the user's own `users/{uid}`; each change is its own key (`changes:<id>`), stored with its format version. This browser's device id stays in localStorage. Tests use the memory driver.
+- **Storage: unstorage**, behind the app's own storage module (`web/src/storage`). Every read and write goes through that module, via `web/src/data/repository.ts`. Signed in, it uses a Firestore driver (`web/src/storage/firestore.ts`) that keeps each key as a document under the user's own `users/{uid}`; each change is its own key (`changes:<id>`), stored with its format version. This browser's device id stays in localStorage. App tests use the memory driver; the Firestore driver has its own tests against the Firestore emulator (`npm run test:emulator`, needs Java 21). The driver is app-agnostic on purpose: it is being offered upstream to unstorage, so keep anything app-specific out of it.
 - **Sign-in and cloud data: Firebase** (free Spark plan). Google sign-in through Firebase Auth (`web/src/account`), data in Cloud Firestore with its offline cache. Only `web/src/firebase.ts`, `web/src/account` and the storage driver know about Firebase. Access rules are in `firestore.rules`; console setup is in `docs/firebase-setup.md`.
 - **Hosting: GitHub Pages**, deployed by GitHub Actions on every push to `master`.
 - **AI (Claude API): keep it to a minimum**, since every call costs money.
@@ -36,7 +36,7 @@ The short way leads to more dead kittens. Prefer the properly typed, tested, mai
 ```sh
 cd core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 cd core && wasm-pack build --release --target bundler --out-dir pkg --out-name did_it_last_core
-cd web && npx prettier --check src/ && npx oxlint . && npx eslint . && npx vitest run && npm run build
+cd web && npx prettier --check src/ && npx oxlint . && npx eslint . && npx vitest run && npm run test:emulator && npm run build
 ```
 
 ## Product principles

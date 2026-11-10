@@ -1,6 +1,8 @@
 // Reads and appends the change log through the storage module. Each change is its own
 // entry (`changes:<id>`) and is never rewritten, so devices syncing later can't clobber
 // each other: they only add entries.
+import type { Unwatch } from 'unstorage'
+
 import type { ItemChange } from '@/core'
 import { getDeviceStorage, getStorage } from '@/storage'
 import { migrate } from './migrations'
@@ -14,6 +16,19 @@ export async function loadChanges(): Promise<ItemChange[]> {
   const storage = getStorage()
   const keys = await storage.getKeys(CHANGES)
   return (await storage.getItems(keys)).map((entry) => migrate(entry.value))
+}
+
+/**
+ * Calls `onAdded` with each change saved from now on, from this device or another one.
+ * Returns a function that stops watching.
+ */
+export async function watchChanges(onAdded: (change: ItemChange) => void): Promise<Unwatch> {
+  const storage = getStorage()
+  return storage.watch(async (event, key) => {
+    if (event !== 'update' || !key.startsWith(`${CHANGES}:`)) return
+    const stored = await storage.getItem(key)
+    if (stored != null) onAdded(migrate(stored))
+  })
 }
 
 export async function appendChanges(changes: ItemChange[]): Promise<void> {
