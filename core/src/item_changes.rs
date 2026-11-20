@@ -4,8 +4,8 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 
-use crate::changes::{self, Change, Edit, Record};
 use crate::items::Item;
+use change_graph::{Change, Edit, Record};
 
 /// One field of an item, set to a new value.
 #[derive(Tsify, Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -105,7 +105,7 @@ pub fn ledger(changes: &[Change<ItemEdit>]) -> Ledger {
         items: Vec::new(),
         conflicts: Vec::new(),
     };
-    for merged in changes::merge::<ItemDraft>(changes) {
+    for merged in change_graph::merge::<ItemDraft>(changes) {
         let mut keep_or_delete = merged.deleted_while_edited;
         for options in merged.clashes {
             if options.iter().any(|c| matches!(c.edit, Edit::Deleted(_))) {
@@ -148,7 +148,7 @@ pub fn item_edits(before: Option<&Item>, after: &Item) -> Vec<Edit<ItemEdit>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::changes::{heads, record, Stamp};
+    use change_graph::{heads, record, Stamp};
 
     fn date(s: &str) -> NaiveDate {
         s.parse().unwrap()

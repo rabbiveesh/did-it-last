@@ -9,6 +9,8 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# Not on crates.io yet: pinned to a commit until it is.
+change-graph = { git = "https://github.com/rabbiveesh/change-graph", rev = "e7811b18ac952fbb2aef3198ca5fb545704a2835", features = ["tsify"] }
 chrono = { version = "0.4.45", default-features = false, features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 tsify = { version = "0.5.8", features = ["js"] }

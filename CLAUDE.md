@@ -21,7 +21,7 @@ The short way leads to more dead kittens. Prefer the properly typed, tested, mai
 ## Stack
 
 - **Core logic: Rust** (`core/`), compiled to WebAssembly with `wasm-pack`. Pure functions over data: items, lifespans and the order of the list. No I/O, so it can be lifted directly into a future backend.
-- **Data is an immutable append-only log folded by reducers.** Nothing stored is ever rewritten: every edit is a new change record, and current state is a pure fold over the log in the Rust core. `core/src/changes.rs` is the generic substrate (ordering by what each device had seen, tombstones, conflict detection) over any type implementing `Record`; `core/src/item_changes.rs` is items on top of it. A new kind of data is a new `Record` and field list, not new sync code. Same-field edits made concurrently on two devices are conflicts the user settles, never silently dropped.
+- **Data is an immutable append-only log folded by reducers.** Nothing stored is ever rewritten: every edit is a new change record, and current state is a pure fold over the log in the Rust core. The generic substrate is the shared `change-graph` crate (rabbiveesh/change-graph, pinned to a git rev until it is on crates.io): it handles ordering by what each device had seen, tombstones and conflict detection over any type implementing `Record`; `core/src/item_changes.rs` is items on top of it. A new kind of data is a new `Record` and field list, not new sync code. Same-field edits made concurrently on two devices are conflicts the user settles, never silently dropped.
 - **Frontend: Vue 3 + TypeScript SPA** (`web/`), built with Vite.
   - Component framework: **Vuetify** (mobile-first, large touch targets).
   - State: **Pinia**. Routing: **vue-router** (hash history, for GitHub Pages).
