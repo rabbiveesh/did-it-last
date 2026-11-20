@@ -14,10 +14,10 @@ import {
 // These values identify the project; they are not secrets. Access is guarded by
 // firestore.rules at the repository root.
 const config: FirebaseOptions = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  appId: '',
+  apiKey: 'AIzaSyCTtGkEUhW_rmNXqMFn22bn3O9dXMxA_l0',
+  authDomain: 'did-it-last.firebaseapp.com',
+  projectId: 'did-it-last',
+  appId: '1:380995369091:web:e44ad563a01489565c03b6',
 }
 
 type Firebase = { app: FirebaseApp; auth: Auth; db: Firestore }
